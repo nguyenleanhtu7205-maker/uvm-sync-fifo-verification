@@ -1,8 +1,7 @@
-
 # UVM Verification Environment for a Synchronous FIFO
 
 A self-checking, constrained-random UVM testbench for a parameterized synchronous FIFO,
-built from a written specification and a verification plan, and run on Cadence Xcelium.
+built from a written specification and a verification plan, and run on Siemens Questa.
 
 This is a learning project. Its goal is to show a complete, small-scale verification flow:
 spec, verification plan, testbench, checking, functional coverage, coverage closure and
@@ -26,13 +25,13 @@ testbench validation by bug injection.
 
 `sync_fifo` is a single-clock FIFO with a synchronous active-low reset.
 
-| Item                 | Value                                                                            |
-| -------------------- | -------------------------------------------------------------------------------- |
-| Parameters           | `DWIDTH` (default 8), `DEPTH` (default 16, power of two)                     |
-| Ports                | `clk`, `rst_n`, `wr_en`, `din`, `rd_en`, `dout`, `full`, `empty` |
-| Read                 | Synchronous: `dout` is registered and valid one cycle after an accepted read   |
-| Flags                | `full` and `empty` are derived from an occupancy counter                     |
-| Overflow / underflow | The command is ignored, stored data is not corrupted                             |
+| Item | Value |
+|---|---|
+| Parameters | `DWIDTH` (default 8), `DEPTH` (default 16, power of two) |
+| Ports | `clk`, `rst_n`, `wr_en`, `din`, `rd_en`, `dout`, `full`, `empty` |
+| Read | Synchronous: `dout` is registered and valid one cycle after an accepted read |
+| Flags | `full` and `empty` are derived from an occupancy counter |
+| Overflow / underflow | The command is ignored, stored data is not corrupted |
 
 Behavior in every read/write/full/empty combination is defined by the truth table in
 section 4.6 of the spec. Two cases are worth noting:
@@ -65,6 +64,7 @@ reports what the DUT actually did and not what the testbench intended. Because t
 synchronous read, the monitor holds each read transaction for one cycle and fills in `dout` when it
 becomes valid.
 
+![UVM architecture](doc/img/uvm_arch.png)
 
 ## Repository layout
 
@@ -84,17 +84,18 @@ becomes valid.
 
 ## How to run
 
-Requires Cadence Xcelium (developed with Xcelium 25.03) with its built-in UVM library
-(`-uvm`). A commercial simulator license is needed.
+Requires Siemens Questa (`vlog`, `vsim`, `vcover`) with its built-in UVM library. A simulator
+license is needed. The UVM code is standard SystemVerilog; only the scripts in `sim/` are
+simulator-specific.
 
 ```bash
 cd sim
 
 make run TEST=fifo_corner_test            # run one test
-make run TEST=fifo_corner_test VERB=UVM_HIGH CLEAN=1   # more verbose, rebuild from scratch
+make run TEST=fifo_corner_test VERB=UVM_HIGH   # more verbose
 make regress                              # all tests, random test with 8 seeds, merged coverage
 make regress NSEED=20                     # more random seeds
-make merge                                # merge coverage and list uncovered bins in holes.txt
+make merge                                # merge coverage (vcover) and write the report to holes.txt
 make wave                                 # open waveform
 make clean                                # remove generated files
 ```
@@ -109,15 +110,15 @@ Each run prints a summary of the form:
 
 ## Tests
 
-| Test                     | Purpose                                                                                  |
-| ------------------------ | ---------------------------------------------------------------------------------------- |
-| `fifo_write_read_test` | Sanity: write N items, read them back                                                    |
-| `fifo_random_test`     | Constrained-random stress, run with many seeds                                           |
-| `fifo_corner_test`     | Fill the FIFO beyond `DEPTH` (overflow), then drain beyond empty (underflow), repeated |
-| `fifo_wrap_test`       | Pointer wrap-around without the FIFO ever becoming full                                  |
-| `fifo_edge_test`       | Simultaneous write and read exactly at the full and empty boundaries (D2, D3)            |
-| `fifo_wr_only_test`    | Factory type override: replaces the item with a write-only item                          |
-| `fifo_passive_test`    | Agent in passive mode: no stimulus, the monitor only observes                            |
+| Test | Purpose |
+|---|---|
+| `fifo_write_read_test` | Sanity: write N items, read them back |
+| `fifo_random_test` | Constrained-random stress, run with many seeds |
+| `fifo_corner_test` | Fill the FIFO beyond `DEPTH` (overflow), then drain beyond empty (underflow), repeated |
+| `fifo_wrap_test` | Pointer wrap-around without the FIFO ever becoming full |
+| `fifo_edge_test` | Simultaneous write and read exactly at the full and empty boundaries (D2, D3) |
+| `fifo_wr_only_test` | Factory type override: replaces the item with a write-only item |
+| `fifo_passive_test` | Agent in passive mode: no stimulus, the monitor only observes |
 
 ## Checking and coverage
 
@@ -130,26 +131,26 @@ transaction number.
 
 **Coverage.** Sampled from monitor transactions, never from sequences.
 
-| Item                            | Content                                                                                                          |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `cp_op`                       | write only, read only, both (idle is an illegal bin)                                                             |
-| `cp_full`, `cp_empty`       | flag state at the time of the operation                                                                          |
-| `cp_din`                      | data ranges plus the boundary values `0x00` and `0xFF`, sampled on writes only                               |
+| Item | Content |
+|---|---|
+| `cp_op` | write only, read only, both (idle is an illegal bin) |
+| `cp_full`, `cp_empty` | flag state at the time of the operation |
+| `cp_din` | data ranges plus the boundary values `0x00` and `0xFF`, sampled on writes only |
 | `cx_op_full`, `cx_op_empty` | operation crossed with the flags: write when full, read when empty, simultaneous read and write at each boundary |
 
 ## Results
 
 > Replace every `TBD` below with the numbers from your own run (`make regress`).
 
-| Test                     | Seeds | Result |
-| ------------------------ | ----- | ------ |
-| `fifo_write_read_test` | 1     | TBD    |
-| `fifo_corner_test`     | 1     | TBD    |
-| `fifo_wrap_test`       | 1     | TBD    |
-| `fifo_edge_test`       | 1     | TBD    |
-| `fifo_wr_only_test`    | 1     | TBD    |
-| `fifo_passive_test`    | 1     | TBD    |
-| `fifo_random_test`     | TBD   | TBD    |
+| Test | Seeds | Result |
+|---|---|---|
+| `fifo_write_read_test` | 1 | TBD |
+| `fifo_corner_test` | 1 | TBD |
+| `fifo_wrap_test` | 1 | TBD |
+| `fifo_edge_test` | 1 | TBD |
+| `fifo_wr_only_test` | 1 | TBD |
+| `fifo_passive_test` | 1 | TBD |
+| `fifo_random_test` | TBD | TBD |
 
 Merged functional coverage over all runs: **TBD %**. Bins waived, with the reason, are listed in
 `doc/vplan.md`.
@@ -159,10 +160,10 @@ Merged functional coverage over all runs: **TBD %**. Bins waived, with the reaso
 To check that the testbench can actually find bugs, defects were injected into the RTL, one at a
 time, and the scoreboard result was recorded. Example entries (full log in `doc/bug_injection.md`):
 
-| Injected bug                                          | Detected by | First failing message |
-| ----------------------------------------------------- | ----------- | --------------------- |
-| `full` asserted at `DEPTH-1` instead of `DEPTH` | `SB_FLAG` | TBD                   |
-| Read data corrupted by one bit                        | `SB_DATA` | TBD                   |
+| Injected bug | Detected by | First failing message |
+|---|---|---|
+| `full` asserted at `DEPTH-1` instead of `DEPTH` | `SB_FLAG` | TBD |
+| Read data corrupted by one bit | `SB_DATA` | TBD |
 
 ## Limitations and future work
 
