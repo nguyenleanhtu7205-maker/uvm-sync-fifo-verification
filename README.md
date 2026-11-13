@@ -64,7 +64,6 @@ reports what the DUT actually did and not what the testbench intended. Because t
 synchronous read, the monitor holds each read transaction for one cycle and fills in `dout` when it
 becomes valid.
 
-![UVM architecture](doc/img/uvm_arch.png)
 
 ## Repository layout
 
