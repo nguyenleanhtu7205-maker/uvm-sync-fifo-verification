@@ -1,9 +1,5 @@
--64bit
 -sv
--uvm
 -timescale 1ns/1ps
--access +rwc
--top tb_top
 +incdir+../env
 +incdir+../seq
 +incdir+../test
