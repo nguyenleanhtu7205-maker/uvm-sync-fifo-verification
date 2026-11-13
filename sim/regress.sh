@@ -1,7 +1,7 @@
 #!/bin/bash
 # =============================================================================
-# regress.sh - chay toan bo test cua testbench FIFO, tong hop pass/fail,
-#              gop coverage bang IMC.
+# regress.sh - chay toan bo test cua testbench FIFO tren Questa, tong hop
+#              pass/fail, gop coverage bang vcover.
 #
 # Cach dung (trong thu muc sim/):
 #   chmod +x regress.sh        # chi can lam mot lan
@@ -16,16 +16,21 @@ cd "$(dirname "$0")" || exit 1
 
 NSEED=${1:-8}
 
-# Test directed: moi test chay 1 seed (ket qua giong nhau o moi seed)
 DIRECTED="fifo_write_read_test fifo_corner_test fifo_wrap_test fifo_wr_only_test fifo_edge_test fifo_passive_test"
-# Test random: chay nhieu seed
 RANDOM_TESTS="fifo_random_test"
 
 TESTLIB="../test/fifo_test_lib.sv"
-XRUN_OPTS="-f filelist.f +UVM_VERBOSITY=UVM_MEDIUM -coverage u -covoverwrite -run -exit"
 
 mkdir -p logs
-rm -rf cov_work            # bat dau tu coverage sach, de ban gop chi gom lan chay nay
+rm -rf ucdb merged.ucdb holes.txt   # bat dau tu coverage sach
+mkdir -p ucdb
+
+# Bien dich mot lan cho ca bo regression
+test -d work || vlib work
+if ! vlog -sv -f filelist.f > logs/compile.log 2>&1; then
+  echo "Bien dich that bai. Xem logs/compile.log"
+  exit 1
+fi
 
 n_pass=0
 n_fail=0
@@ -39,10 +44,13 @@ run_one() {
   local name=${test}_s${seed}
   local log=logs/${name}.log
 
-  xrun $XRUN_OPTS +UVM_TESTNAME=$test -svseed $seed -covtest $name -l $log > /dev/null 2>&1
+  vsim -c tb_top -coverage -sv_seed "$seed" +UVM_TESTNAME="$test" +UVM_VERBOSITY=UVM_MEDIUM \
+       -l "$log" \
+       -do "coverage save -onexit ucdb/${name}.ucdb; run -all; quit -f" > /dev/null 2>&1
 
   local status="FAIL"
-  if grep -qF '*** TEST PASSED ***' "$log" 2>/dev/null && ! grep -qE '\*E,|\*F,' "$log"; then
+  if grep -qF '*** TEST PASSED ***' "$log" 2>/dev/null \
+     && ! grep -qE '\*\* Error|UVM_(ERROR|FATAL)[[:space:]]*:[[:space:]]+[1-9]' "$log"; then
     status="PASS"
   fi
 
@@ -66,7 +74,7 @@ test_exists() {
 }
 
 echo "=============================================================="
-echo " REGRESSION: test directed 1 seed, test random $NSEED seed"
+echo " REGRESSION (Questa): test directed 1 seed, test random $NSEED seed"
 echo "=============================================================="
 
 for t in $DIRECTED; do
@@ -93,21 +101,23 @@ echo "--------------------------------------------------------------"
 echo " PASS: $n_pass   FAIL: $n_fail   SKIP: $n_skip"
 if [ "$n_fail" -ne 0 ]; then
   echo " Cac lan chay that bai:$FAILED"
-  echo " Xem log tuong ung trong logs/ (tim dong *E, UVM_ERROR, UVM_FATAL)"
+  echo " Xem log tuong ung trong logs/ (tim dong ** Error, UVM_ERROR, UVM_FATAL)"
 fi
 echo "--------------------------------------------------------------"
 
-# Gop coverage cua tat ca cac lan chay (neu co IMC)
-if command -v imc > /dev/null 2>&1; then
-  echo " Dang gop coverage bang IMC ..."
-  imc -execcmd "merge cov_work/scope/*_s* -out cov_work/scope/merged -overwrite; load -run cov_work/scope/merged; report -detail -uncovered -metrics covergroup -out holes.txt" > logs/imc.log 2>&1
+# Gop coverage cua tat ca cac lan chay (neu co vcover)
+if command -v vcover > /dev/null 2>&1 && ls ucdb/*.ucdb > /dev/null 2>&1; then
+  echo " Dang gop coverage bang vcover ..."
+  vcover merge -out merged.ucdb ucdb/*_s*.ucdb > logs/vcover.log 2>&1
+  vcover report -details -cvg -zeros -output holes.txt merged.ucdb >> logs/vcover.log 2>&1 \
+    || vcover report -details -cvg -output holes.txt merged.ucdb >> logs/vcover.log 2>&1
   if [ -s holes.txt ]; then
-    echo " Danh sach bin chua phu: holes.txt"
+    echo " Bao cao coverage gop: holes.txt (xem muc Covergroup)"
   else
-    echo " Khong tao duoc holes.txt. Xem logs/imc.log (cu phap IMC co the can chinh theo phien ban)."
+    echo " Khong tao duoc holes.txt. Xem logs/vcover.log (tuy chon vcover co the khac theo phien ban)."
   fi
 else
-  echo " Khong tim thay lenh 'imc': bo qua buoc gop coverage."
+  echo " Khong co 'vcover' hoac khong co file .ucdb: bo qua buoc gop coverage."
 fi
 
 [ "$n_fail" -eq 0 ]
